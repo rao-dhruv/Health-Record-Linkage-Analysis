@@ -1,3 +1,3 @@
 # Health-Record-Linkage-Analysis
 
-For SequentialRla, Please refer: https://github.com/joyantabasak13/SequentialRLA/
+For SequentialRLA, Please refer: https://github.com/joyantabasak13/SequentialRLA/

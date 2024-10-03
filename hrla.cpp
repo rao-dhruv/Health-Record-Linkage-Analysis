@@ -7,6 +7,7 @@
 #include <ctime>
 #include <chrono>
 #include <algorithm>
+#include <iomanip>
 
 // Function to convert string to std::tm
 std::tm stringToDate(const std::string& dateStr) {
@@ -178,7 +179,7 @@ int main() {
         total_blood_cost_sum += blood_cost_sum;
         total_xray_cost_sum += xray_cost_sum;
         total_dental_cost_sum += dental_cost_sum;
-
+        std::cout << std::fixed << std::setprecision(0) << std::noshowpoint;
         // Writing results to the file
         outFile << "Cluster " << i + 1 << " sorted records:\n";
         outFile << "\nTotal BloodCost Savings: " << blood_cost_sum << ", Total XrayCost Savings: " << xray_cost_sum << ", Total DentalCost Savings: " << dental_cost_sum << "\n\n";
@@ -188,7 +189,7 @@ int main() {
 
     end = std::chrono::high_resolution_clock::now();
     auto work2 = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
-
+    std::cout << std::fixed << std::setprecision(0) << std::noshowpoint;
     std::cout << "Total Blood Cost saved = " << total_blood_cost_sum << "\n";
     std::cout << "Total Xray Cost saved = " << total_xray_cost_sum << "\n";
     std::cout << "Total Dental Cost saved = " << total_dental_cost_sum << "\n";

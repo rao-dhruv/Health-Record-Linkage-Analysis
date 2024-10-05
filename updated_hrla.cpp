@@ -28,7 +28,7 @@ string getMapValue(const map<string, string>& record, const string& key) {
 
 int main() {
     // Timing the process
-    auto start = chrono::high_resolution_clock::now();
+    clock_t currTS_p1	= clock();
     
     // Reading cluster indices
     vector<vector<int>> clusters;
@@ -57,9 +57,6 @@ int main() {
     }
     inFile.close();
     
-    auto end = chrono::high_resolution_clock::now();
-    auto work1 = chrono::duration_cast<chrono::seconds>(end - start).count();
-    cout << "Time taken for cluster making is: " << work1 << " seconds\n";
     cout << "The total length of cluster is: " << clusters.size() << "\n";
 
     // Reading the main dataset
@@ -97,8 +94,6 @@ int main() {
     double total_blood_cost_sum = 0;
     double total_xray_cost_sum = 0;
     double total_dental_cost_sum = 0;
-
-    start = chrono::high_resolution_clock::now();
 
     for (size_t i = 0; i < clusters.size(); ++i) {
         vector<map<string, string>> clusterData;
@@ -187,14 +182,13 @@ int main() {
 
     outFile.close();
 
-    end = chrono::high_resolution_clock::now();
-    auto work2 = chrono::duration_cast<chrono::seconds>(end - start).count();
+    double readRec_t	= (double)(clock() - currTS_p1) / CLOCKS_PER_SEC;
+    cout << fixed << setprecision(0) << noshowpoint;
     cout << fixed << setprecision(0) << noshowpoint;
     cout << "Total Blood Cost saved = " << total_blood_cost_sum << "\n";
     cout << "Total Xray Cost saved = " << total_xray_cost_sum << "\n";
     cout << "Total Dental Cost saved = " << total_dental_cost_sum << "\n";
-    cout << "Time taken for Analyzing all Cost Work is: " << work2 << " seconds\n";
-    cout << "Total time taken for the process is: " << work1 + work2 << " seconds\n";
+    cout << "Total time taken for the process is: " << readRec_t << " seconds\n";
 
     return 0;
 }

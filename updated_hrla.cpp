@@ -184,7 +184,6 @@ int main() {
 
     double readRec_t	= (double)(clock() - currTS_p1) / CLOCKS_PER_SEC;
     cout << fixed << setprecision(0) << noshowpoint;
-    cout << fixed << setprecision(0) << noshowpoint;
     cout << "Total Blood Cost saved = " << total_blood_cost_sum << "\n";
     cout << "Total Xray Cost saved = " << total_xray_cost_sum << "\n";
     cout << "Total Dental Cost saved = " << total_dental_cost_sum << "\n";

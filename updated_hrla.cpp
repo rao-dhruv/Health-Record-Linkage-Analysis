@@ -8,8 +8,13 @@
 #include <chrono>
 #include <algorithm>
 #include <iomanip>
+#include <boost/algorithm/string.hpp>
+#include <boost/foreach.hpp>
+#include <boost/tokenizer.hpp>
+
 using namespace std;
-// Function to convert string to tm
+
+// Converting string to a tm date
 tm stringToDate(const string& dateStr) {
     tm tm = {};
     istringstream ss(dateStr);
@@ -17,75 +22,88 @@ tm stringToDate(const string& dateStr) {
     return tm;
 }
 
-// Helper function to safely access map values
 string getMapValue(const map<string, string>& record, const string& key) {
     auto it = record.find(key);
     if (it != record.end()) {
         return it->second;
     }
-    return "";  // Return empty string if key not found
+    return "";
 }
 
 int main() {
-    // Timing the process
+    // Time Start
     clock_t currTS_p1	= clock();
-    
-    // Reading cluster indices
-    vector<vector<int>> clusters;
-    ifstream inFile("/Users/dhruvrao/Desktop/Work/SequentialRLA/Out_recInds.csv");
-    
-    if (!inFile.is_open()) {
-        cerr << "Failed to open file!" << endl;
-        return 1;
-    }
-    
-    string line;
-    while (getline(inFile, line)) {
-        stringstream ss(line);
-        vector<int> indices;
-        string token;
-        
-        while (getline(ss, token, ',')) {
-            if (!token.empty() && all_of(token.begin(), token.end(), ::isdigit)) {
-                indices.push_back(stoi(token));
-            }
-        }
-        
-        if (!indices.empty()) {
-            clusters.push_back(indices);
-        }
-    }
-    inFile.close();
-    
-    cout << "The total length of cluster is: " << clusters.size() << "\n";
 
     // Reading the main dataset
-    vector<map<string, string>> mainData;
-    ifstream dataFile("/Users/dhruvrao/Desktop/Work/SequentialRLA/data/updated_ds1_50k_fl");
+    // columns = {"SSN", "LN", "FN", "DOD", "DOB", "Provider", "BloodDate", "BloodCost", "XrayDate", "XrayCost", "DentalDate", "DentalCost"};
+    string dataFile = "/Users/dhruvrao/Desktop/Work/SequentialRLA/data/updated_ds1.1.1";
+    //Reading Cluster
+    string inFile = "/Users/dhruvrao/Desktop/Work/SequentialRLA/Out_recInds.csv";
 
-    if (!dataFile.is_open()) {
-        cerr << "Failed to open the dataset!" << endl;
-        return 1;
-    }
+    int bloodDateCol = 6;
+    int xRayDateCol = 8;
+    int dentalDateCol = 10;
+    string line;
+    vector<vector<string>> mainData;
+    vector<vector<vector<pair<string, int>>>> clusters;
 
-    vector<string> columns = {"SSN", "LN", "FN", "DOD", "DOB", "Provider", "BloodDate", "BloodCost", "XrayDate", "XrayCost", "DentalDate", "DentalCost"};
-    string recordLine;
-    while (getline(dataFile, recordLine)) {
-        map<string, string> record;
-        stringstream ss(recordLine);
-        string token;
-        int colIdx = 0;
+    // Read the main dataset
+    ifstream records(dataFile);
+    while (getline(records, line)) {
+        vector<string> result;
+        boost::split(result, line, boost::is_any_of(","));
+        vector<string> vec;
+        for(int i=0; i<result.size(); i++) {
+            auto last = remove_if(result[i].begin(), result[i].end(), [](char ch) {
+                return ::ispunct(ch) || ::iswpunct(ch) || ::isspace(ch);
+            });
+            result[i].erase(last, result[i].end());
+            result[i].erase(remove_if(result[i].begin(), result[i].end(), [](unsigned char c){return !(c>=0 && c <128);}), result[i].end());
 
-        while (getline(ss, token, ',')) {
-            record[columns[colIdx++]] = token;
+            boost::to_lower(result[i]);
+            vec.push_back(result[i]);
         }
-        mainData.push_back(record);
+        mainData.push_back(vec);
     }
-    dataFile.close();
+    records.close();
 
-    // Perform cost analysis
-    ofstream outFile("/Users/dhruvrao/Desktop/Work/SequentialRLA/data/cost1_updated_ds1_50k_fl");
-    
+    // Read the indices from the file
+    ifstream indexf(inFile);
+    while (getline(indexf, line)) {
+        vector<string> indices;
+        boost::split(indices, line, boost::is_any_of(","));
+        vector<pair<string, int>> bloodInfo;
+        vector<pair<string, int>> xrayInfo;
+        vector<pair<string, int>> dentalInfo;
+        vector<vector<pair<string, int>>> cluster;
+        for(int i=0; i<indices.size(); i++) {
+            if(indices[i].size() > 0) {
+                pair<string, int> bloodTest;
+                bloodTest.first = mainData[stoi(indices[i])][bloodDateCol];
+                bloodTest.second = stoi(mainData[stoi(indices[i])][bloodDateCol+1]);
+                bloodInfo.push_back(bloodTest);
+
+                pair<string, int> xrayTest;
+                xrayTest.first = mainData[stoi(indices[i])][xRayDateCol];
+                xrayTest.second = stoi(mainData[stoi(indices[i])][xRayDateCol+1]);
+                xrayInfo.push_back(xrayTest);
+
+                pair<string, int> dentalTest;
+                dentalTest.first = mainData[stoi(indices[i])][dentalDateCol];
+                dentalTest.second = stoi(mainData[stoi(indices[i])][dentalDateCol+1]);
+                dentalInfo.push_back(dentalTest);
+            }
+        }
+        cluster.push_back(bloodInfo);
+        cluster.push_back(xrayInfo);
+        cluster.push_back(dentalInfo);
+        clusters.push_back(cluster);
+    }
+    indexf.close();
+
+    // Output Cost File
+    ofstream outFile("/Users/dhruvrao/Desktop/Work/SequentialRLA/data/cost1");
+
     if (!outFile.is_open()) {
         cerr << "Failed to open output file!" << endl;
         return 1;
@@ -95,97 +113,83 @@ int main() {
     double total_xray_cost_sum = 0;
     double total_dental_cost_sum = 0;
 
+    vector<int> bloodSavings;
+    vector<int> xRaySavings;
+    vector<int> dentalSavings;
+
     for (size_t i = 0; i < clusters.size(); ++i) {
-        vector<map<string, string>> clusterData;
-
-        // Gathering data by index from the clusters
-        for (int idx : clusters[i]) {
-            clusterData.push_back(mainData[idx]);
-        }
-
-        // Sorting and calculating BloodCost savings
-        sort(clusterData.begin(), clusterData.end(), [](const map<string, string>& a, const map<string, string>& b) {
-            tm bloodDate1 = stringToDate(getMapValue(a, "BloodDate"));
-            tm bloodDate2 = stringToDate(getMapValue(b, "BloodDate"));
-            time_t time1 = mktime(&bloodDate1);
-            time_t time2 = mktime(&bloodDate2);
-            return time1 < time2;
+        int bloodSave = 0;
+        vector<pair<string, int>> bloodInfo = clusters[i][0];
+        sort(bloodInfo.begin(), bloodInfo.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
+            tm dateA = stringToDate(a.first);  // Storing in local variables
+            tm dateB = stringToDate(b.first);
+            return mktime(&dateA) < mktime(&dateB);  // Using local variables
         });
 
-        for (size_t j = 0; j < clusterData.size() - 1; ++j) {
-            tm current_date = stringToDate(getMapValue(clusterData[j], "BloodDate"));
-            tm next_date = stringToDate(getMapValue(clusterData[j + 1], "BloodDate"));
-            if (difftime(mktime(&next_date), mktime(&current_date)) <= 7 * 24 * 60 * 60) {
-                clusterData[j]["BloodCostSaving"] = getMapValue(clusterData[j + 1], "BloodCost");
+        for (size_t j = 0; j < bloodInfo.size() - 1; ++j) {
+            // Date difference logic for blood tests (within 7 days)
+            tm current_date = stringToDate(bloodInfo[j].first);
+            tm next_date = stringToDate(bloodInfo[j+1].first);
+            double diff_seconds = difftime(mktime(&next_date), mktime(&current_date));
+            if (diff_seconds <= 7 * 24 * 60 * 60) {
+                bloodSave += bloodInfo[j+1].second;
             }
         }
+        bloodSavings.push_back(bloodSave);
 
-        // Sorting and calculating XrayCost savings
-        sort(clusterData.begin(), clusterData.end(), [](const map<string, string>& a, const map<string, string>& b) {
-            tm xrayDate1 = stringToDate(getMapValue(a, "XrayDate"));
-            tm xrayDate2 = stringToDate(getMapValue(b, "XrayDate"));
-            time_t time1 = mktime(&xrayDate1);
-            time_t time2 = mktime(&xrayDate2);
-            return time1 < time2;
+        int xRaySave = 0;
+        vector<pair<string, int>> xRayInfo = clusters[i][1];
+        sort(xRayInfo.begin(), xRayInfo.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
+            tm dateA = stringToDate(a.first);  
+            tm dateB = stringToDate(b.first);
+            return mktime(&dateA) < mktime(&dateB);
         });
 
-        for (size_t j = 0; j < clusterData.size() - 1; ++j) {
-            tm current_date = stringToDate(getMapValue(clusterData[j], "XrayDate"));
-            tm next_date = stringToDate(getMapValue(clusterData[j + 1], "XrayDate"));
-            if (difftime(mktime(&next_date), mktime(&current_date)) <= 150 * 24 * 60 * 60) {
-                clusterData[j]["XrayCostSaving"] = getMapValue(clusterData[j + 1], "XrayCost");
+        for (size_t j = 0; j < xRayInfo.size() - 1; ++j) {
+            // Date difference logic for X-rays (within 150 days)
+            tm current_date = stringToDate(xRayInfo[j].first);
+            tm next_date = stringToDate(xRayInfo[j+1].first);
+            double diff_seconds = difftime(mktime(&next_date), mktime(&current_date));
+            if (diff_seconds <= 150 * 24 * 60 * 60) {
+                xRaySave += xRayInfo[j+1].second;
             }
         }
+        xRaySavings.push_back(xRaySave);
 
-        // Sorting and calculating DentalCost savings
-        sort(clusterData.begin(), clusterData.end(), [](const map<string, string>& a, const map<string, string>& b) {
-            tm dentalDate1 = stringToDate(getMapValue(a, "DentalDate"));
-            tm dentalDate2 = stringToDate(getMapValue(b, "DentalDate"));
-            time_t time1 = mktime(&dentalDate1);
-            time_t time2 = mktime(&dentalDate2);
-            return time1 < time2;
+        int dentalSave = 0;
+        vector<pair<string, int>> dentalInfo = clusters[i][2];
+        sort(dentalInfo.begin(), dentalInfo.end(), [](const pair<string, int>& a, const pair<string, int>& b) {
+            tm dateA = stringToDate(a.first);  
+            tm dateB = stringToDate(b.first);
+            return mktime(&dateA) < mktime(&dateB);
         });
 
-        for (size_t j = 0; j < clusterData.size() - 1; ++j) {
-            tm current_date = stringToDate(getMapValue(clusterData[j], "DentalDate"));
-            tm next_date = stringToDate(getMapValue(clusterData[j + 1], "DentalDate"));
-            if (difftime(mktime(&next_date), mktime(&current_date)) <= 180 * 24 * 60 * 60) {
-                clusterData[j]["DentalCostSaving"] = getMapValue(clusterData[j + 1], "DentalCost");
+        for (size_t j = 0; j < dentalInfo.size() - 1; ++j) {
+            // Date difference logic for dental tests (within 180 days)
+            tm current_date = stringToDate(dentalInfo[j].first);
+            tm next_date = stringToDate(dentalInfo[j+1].first);
+            double diff_seconds = difftime(mktime(&next_date), mktime(&current_date));
+            if (diff_seconds <= 180 * 24 * 60 * 60) {
+                dentalSave += dentalInfo[j+1].second;
             }
         }
+        dentalSavings.push_back(dentalSave);
 
-        // Summing up the cost savings for the current cluster
-        double blood_cost_sum = 0;
-        double xray_cost_sum = 0;
-        double dental_cost_sum = 0;
+        total_blood_cost_sum += bloodSave;
+        total_xray_cost_sum += xRaySave;
+        total_dental_cost_sum += dentalSave;
 
-        for (const auto& rec : clusterData) {
-            if (!getMapValue(rec, "BloodCostSaving").empty()) {
-                blood_cost_sum += stod(getMapValue(rec, "BloodCostSaving"));
-            }
-            if (!getMapValue(rec, "XrayCostSaving").empty()) {
-                xray_cost_sum += stod(getMapValue(rec, "XrayCostSaving"));
-            }
-            if (!getMapValue(rec, "DentalCostSaving").empty()) {
-                dental_cost_sum += stod(getMapValue(rec, "DentalCostSaving"));
-            }
-        }
-        
-        total_blood_cost_sum += blood_cost_sum;
-        total_xray_cost_sum += xray_cost_sum;
-        total_dental_cost_sum += dental_cost_sum;
-        cout << fixed << setprecision(0) << noshowpoint;
         // Writing results to the file
         outFile << "Cluster " << i + 1 << " sorted records:\n";
-        outFile << "\nTotal BloodCost Savings: " << blood_cost_sum << ", Total XrayCost Savings: " << xray_cost_sum << ", Total DentalCost Savings: " << dental_cost_sum << "\n\n";
+        outFile << "\nTotal Blood Cost Savings: " << bloodSave << ", Total X-ray Cost Savings: " << xRaySave << ", Total Dental Cost Savings: " << dentalSave << "\n\n";
     }
 
     outFile.close();
 
-    double readRec_t	= (double)(clock() - currTS_p1) / CLOCKS_PER_SEC;
+    double readRec_t = (double)(clock() - currTS_p1) / CLOCKS_PER_SEC;
     cout << fixed << setprecision(0) << noshowpoint;
     cout << "Total Blood Cost saved = " << total_blood_cost_sum << "\n";
-    cout << "Total Xray Cost saved = " << total_xray_cost_sum << "\n";
+    cout << "Total X-ray Cost saved = " << total_xray_cost_sum << "\n";
     cout << "Total Dental Cost saved = " << total_dental_cost_sum << "\n";
     cout << "Total time taken for the process is: " << readRec_t << " seconds\n";
 
